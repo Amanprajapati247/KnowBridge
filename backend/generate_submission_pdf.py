@@ -153,7 +153,7 @@ def build_pdf(filename="KnowBridge_Round_2_Submission.pdf"):
     meta_data = [
         [Paragraph("<b>Team Name</b>", table_cell_style), Paragraph("Tech Titan", table_cell_style),
          Paragraph("<b>Participation</b>", table_cell_style), Paragraph("Individual Participant (Aman Prajapati)", table_cell_style)],
-        [Paragraph("<b>Round</b>", table_cell_style), Paragraph("Round 2 – The Build (100 Pts)", table_cell_style),
+        [Paragraph("<b>Round</b>", table_cell_style), Paragraph("Round 2 – The Build", table_cell_style),
          Paragraph("<b>Live URL</b>", table_cell_style), Paragraph("<u>https://knowbridge-production.up.railway.app/</u>", table_cell_style)],
         [Paragraph("<b>Repository</b>", table_cell_style), Paragraph("<u>https://github.com/Amanprajapati247/KnowBridge.git</u>", table_cell_style),
          Paragraph("<b>Lead Account</b>", table_cell_style), Paragraph("lead@knowbridge.io (PW: DemoLead123!)", table_cell_style)],
@@ -187,7 +187,7 @@ def build_pdf(filename="KnowBridge_Round_2_Submission.pdf"):
     ))
 
     # 2. End-to-End Core Workflow
-    story.append(Paragraph("2. Core End-to-End Workflow Demonstration (30 Points)", h1_style))
+    story.append(Paragraph("2. Core End-to-End Workflow Demonstration", h1_style))
     story.append(Paragraph(
         "KnowBridge successfully executes the complete five-stage knowledge handover workflow without broken steps:",
         body_style
@@ -238,7 +238,7 @@ def build_pdf(filename="KnowBridge_Round_2_Submission.pdf"):
 
     # ================= PAGE 2 =================
     # 3. Technical Depth & Architecture
-    story.append(Paragraph("3. Technical Depth, Reliability & Architecture (25 Points)", h1_style))
+    story.append(Paragraph("3. Technical Depth, Reliability & Architecture", h1_style))
     story.append(Paragraph(
         "KnowBridge is built with a production-grade enterprise stack prioritizing stability, zero-hallucination grounding, and clean separation of concerns.",
         body_style
@@ -274,7 +274,7 @@ def build_pdf(filename="KnowBridge_Round_2_Submission.pdf"):
     story.append(Spacer(1, 6))
 
     # 4. Progress Against Round 1 Plan
-    story.append(Paragraph("4. Progress Against Round 1 Plan & Technical Evolution (20 Points)", h1_style))
+    story.append(Paragraph("4. Progress Against Round 1 Plan & Technical Evolution", h1_style))
     story.append(Paragraph(
         "Team Tech Titan has delivered 100% of the proposed Round 1 scope while implementing key architectural enhancements:",
         body_style
@@ -321,7 +321,7 @@ def build_pdf(filename="KnowBridge_Round_2_Submission.pdf"):
     story.append(Spacer(1, 6))
 
     # 6. Three Planned Improvements for Round 3
-    story.append(Paragraph("6. Three Substantial Commitments for Round 3 (15 Points)", h1_style))
+    story.append(Paragraph("6. Three Substantial Commitments for Round 3", h1_style))
     story.append(Paragraph(
         "In compliance with the Round 2 brief, Team Tech Titan commits to three major product improvements for Round 3:",
         body_style
@@ -359,7 +359,7 @@ def build_pdf(filename="KnowBridge_Round_2_Submission.pdf"):
     story.append(Spacer(1, 6))
 
     # 7. Usability & SaaS Polish
-    story.append(Paragraph("7. Usability, User Experience & SaaS Polish (10 Points)", h1_style))
+    story.append(Paragraph("7. Usability, User Experience & SaaS Polish", h1_style))
     story.append(Paragraph(
         "KnowBridge was built to commercial SaaS standards. The interface features a clean navy (#0f172a) and teal (#0d9488) visual palette, "
         "high-contrast verification badges, Recharts visual breakdowns, and a dedicated workspace navigation layout. "
