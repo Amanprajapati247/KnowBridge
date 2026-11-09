@@ -151,6 +151,22 @@ export const api = {
     return handleResponse<DocumentPassage[]>(res);
   },
 
+  async downloadDocument(documentId: number, filename: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/documents/${documentId}/download`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to download document');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
   async deleteDocument(documentId: number): Promise<void> {
     const res = await fetch(`${API_BASE}/documents/${documentId}`, {
       method: 'DELETE',

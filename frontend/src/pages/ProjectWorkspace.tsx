@@ -33,7 +33,8 @@ import {
   ListOrdered, 
   Search,
   Activity,
-  FileCheck
+  FileCheck,
+  Download
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -515,6 +516,19 @@ export const ProjectWorkspace: React.FC = () => {
                             title="Inspect Extracted Passages"
                           >
                             <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await api.downloadDocument(d.id, d.filename);
+                              } catch (err: any) {
+                                alert(`Download failed: ${err.message}`);
+                              }
+                            }}
+                            className="p-1.5 hover:bg-slate-100 rounded text-slate-600 hover:text-teal-600 transition"
+                            title="Download Original File"
+                          >
+                            <Download className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteDocument(d.id)}

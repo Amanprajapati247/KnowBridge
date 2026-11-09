@@ -1,6 +1,7 @@
 import os
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
@@ -142,6 +143,25 @@ def get_passages(
     
     passages = db.query(DocumentPassage).filter(DocumentPassage.document_id == id).order_by(DocumentPassage.passage_number).all()
     return passages
+
+@router.get("/documents/{id}/download")
+def download_document(
+    id: int,
+    current_user: User = Depends(require_project_lead),
+    db: Session = Depends(get_db)
+):
+    doc = db.query(Document).filter(Document.id == id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    project = db.query(Project).filter(Project.id == doc.project_id, Project.lead_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=403, detail="Unauthorized to access this document")
+
+    if not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=404, detail="File content not found on server")
+
+    return FileResponse(doc.file_path, filename=doc.filename)
 
 @router.delete("/documents/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(
