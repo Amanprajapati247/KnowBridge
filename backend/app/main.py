@@ -68,6 +68,12 @@ def init_system_accounts():
                 db.add(incoming)
 
         db.commit()
+
+        # Feed realistic application projects if not already present
+        lead_user = db.query(User).filter(User.email == "lead@knowbridge.io").first()
+        if lead_user:
+            from app.services.data_feeder import feed_application_data
+            feed_application_data(db, lead_user)
     finally:
         db.close()
 
