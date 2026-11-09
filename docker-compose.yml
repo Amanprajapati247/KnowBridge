@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  knowbridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: knowbridge-app
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=knowbridge-production-secret-key-2026-deploy
+      - DATABASE_URL=sqlite:///./knowbridge.db
+      - UPLOAD_DIR=./uploads
+    volumes:
+      - knowbridge_data:/app/backend/uploads
+    restart: unless-stopped
+
+volumes:
+  knowbridge_data:
