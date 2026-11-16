@@ -15,6 +15,9 @@ When employees, engineers, student contributors, or team members leave an organi
 
 - **100% Traceable Grounding:** Every generated claim links back to its exact source file, page number, and text excerpt. No ungrounded hallucinations.
 - **Cross-Document Discrepancy Detection:** When two documents disagree (e.g. conflicting milestone deadlines), KnowBridge flags both passages side-by-side rather than silently guessing.
+- **Live Git & Task Connectors (Round 3):** Native sync with GitHub repositories, Jira boards, and Linear workspaces to automatically ingest pull requests, commits, and architectural decisions.
+- **Semantic Hybrid RAG (Round 3):** Natural-language Question & Answering engine combining dense vector embeddings with Okapi BM25 keyword search and Reciprocal Rank Fusion (RRF).
+- **Cryptographic Audit Trail (Round 3):** SHA-256 content hashing for source files and approved handovers, immutable snapshots, semantic version diffing (v1.0 vs v2.0), and cryptographically verified incoming-member sign-off receipts.
 - **Human-in-the-Loop Governance:** Project leads edit, redact, reject, or resolve claims, ensuring confidential or unverified notes never leak.
 - **Backend-Enforced Role Separation:** Incoming members can only view approved handovers. Drafts, raw passages, and redacted statements are blocked at the API level (HTTP 403).
 - **Pre-Configured Starter Template:** Built-in starter project ("College Event Management System") with multi-format documentation and realistic operational records.
@@ -123,14 +126,24 @@ Frontend will start on `http://localhost:5173`.
 
 ## 6. Running Automated Tests
 
-A comprehensive pytest test suite tests authentication, role-based security, document extraction (PDF, DOCX, TXT), corrupted file rejection, conflict detection, redaction filtering, and the end-to-end workflow:
+A comprehensive pytest test suite (10/10 test suites passing, 100% pass rate) covers all Round 2 and Round 3 commitments:
+1. `test_health`: System health & database readiness
+2. `test_auth_and_roles`: Multi-role JWT tokens and permission enforcement
+3. `test_document_extraction_and_failure_cases`: PDF/DOCX/TXT extraction and corrupted file handling
+4. `test_incoming_member_role_restrictions`: Redaction filtering and authorization sandboxing
+5. `test_end_to_end_demo_workflow`: Project lifecycle from ingestion to handover approval
+6. `test_sha256_content_hashing_and_verification`: Cryptographic SHA-256 hash calculation and verification
+7. `test_handover_versioning_and_snapshot_diff`: Immutable snapshots & semantic version diffing (v1.0 vs v2.0)
+8. `test_incoming_member_acknowledgment_and_receipt`: Cryptographic receipt generation and tamper checks
+9. `test_semantic_hybrid_rag_qna`: Vector cosine similarity + BM25 keyword search with RRF
+10. `test_external_connectors_api`: GitHub repo sync, Jira/Linear task connector architecture
 
 ```bash
 cd backend
 .\.venv\Scripts\pytest tests/test_knowbridge.py -v
 ```
 
-All tests execute against local SQLite test fixtures with 100% pass rate.
+All 10 tests execute with a 100% pass rate.
 
 ---
 

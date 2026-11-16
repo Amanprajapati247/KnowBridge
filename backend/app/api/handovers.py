@@ -7,6 +7,7 @@ from app.models import Project, ExtractedClaim, Document, Handover, HandoverItem
 from app.schemas import HandoverOut, HandoverItemOut, HandoverItemUpdate, HandoverApprove
 from app.api.deps import require_project_lead, get_current_user, record_audit
 from app.services.handover_generator import generate_handover_report
+from app.services.crypto_audit import CryptoAuditService
 
 router = APIRouter(prefix="", tags=["Handovers"])
 
@@ -170,23 +171,17 @@ def approve_handover(
     if not project:
         raise HTTPException(status_code=403, detail="Unauthorized to approve this handover")
 
-    handover.status = "APPROVED"
-    handover.approved_by_id = current_user.id
-    handover.approved_at = datetime.now(timezone.utc)
-    handover.approval_notes = approval_data.approval_notes
+    # Cryptographically hash and create immutable snapshot
+    CryptoAuditService.create_approved_snapshot(
+        db=db,
+        handover=handover,
+        lead_user=current_user,
+        approval_notes=approval_data.approval_notes
+    )
 
     # Update project status
     project.status = "IN_REVIEW"
-
     db.commit()
     db.refresh(handover)
-
-    record_audit(
-        db,
-        "HANDOVER_APPROVED",
-        project_id=project.id,
-        user=current_user,
-        details=f"Handover v{handover.version} officially approved and published for incoming members. Notes: {approval_data.approval_notes or 'Approved by Project Lead'}"
-    )
 
     return handover

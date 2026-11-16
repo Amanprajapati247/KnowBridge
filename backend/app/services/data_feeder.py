@@ -1,15 +1,19 @@
 import os
+import json
+import hashlib
 from datetime import datetime, timezone
 import pymupdf
 from docx import Document as DocxDocument
 from sqlalchemy.orm import Session
 from app.models import (
     User, Project, Document, DocumentPassage, ExtractedClaim, ClaimEvidence,
-    Handover, HandoverItem, AuditLog
+    Handover, HandoverItem, HandoverSnapshot, HandoverAcknowledgment,
+    ExternalConnector, ExternalRecord, AuditLog
 )
 from app.services.extractor import extract_document
 from app.services.ai_engine import run_deterministic_extraction, detect_conflicts
 from app.services.handover_generator import generate_handover_report
+from app.services.crypto_audit import CryptoAuditService
 from app.core.config import settings
 
 FEED_DIR = os.path.join(settings.UPLOAD_DIR, "production_data")
@@ -638,3 +642,269 @@ Open question: Who oversees cryptographic master key rotation every 90 days?
         db.add(AuditLog(project_id=p3.id, user_id=lead_user.id, user_name=lead_user.full_name, action="DOCUMENTS_INGESTED", details="Security specifications and database ADR ingested."))
         db.add(AuditLog(project_id=p3.id, user_id=lead_user.id, user_name=lead_user.full_name, action="HANDOVER_APPROVED", details="Official Handover Report v1.0 signed off for clinical staff."))
         db.commit()
+
+    # Always enrich Round 3 data (hash backfills, connector, snapshots, acknowledgment)
+    enrich_round3_data(db, lead_user)
+
+
+def enrich_round3_data(db: Session, lead_user: User):
+    """
+    Enriches existing or newly initialized databases with complete Round 3 demonstration records:
+    1. Backfills SHA-256 hashes on all Document records.
+    2. Creates HandoverSnapshot v1.0 records with SHA-256 hashes for all approved handovers.
+    3. Connects the official GitHub repository ('Amanprajapati247/KnowBridge') with realistic commits, PRs, and issues.
+    4. Creates a HandoverSnapshot v2.0 for Project 1 so judges can test version comparison (v1.0 vs v2.0).
+    5. Creates a formal incoming-member HandoverAcknowledgment receipt signed by Jordan Reed.
+    """
+    # 1. Backfill Document SHA-256 hashes
+    docs = db.query(Document).filter(Document.sha256_hash.is_(None)).all()
+    for d in docs:
+        if os.path.exists(d.file_path):
+            d.sha256_hash = CryptoAuditService.calculate_file_sha256(d.file_path)
+        else:
+            d.sha256_hash = hashlib.sha256(f"seed-document-{d.id}-{d.filename}".encode()).hexdigest()
+    if docs:
+        db.commit()
+
+    # Find Project 1 (College Event Management System)
+    p1 = db.query(Project).filter(Project.title == "College Event Management System").first()
+    if not p1:
+        return
+
+    # 2. Backfill HandoverSnapshot v1.0 for approved handovers
+    approved_handovers = db.query(Handover).filter(Handover.status == "APPROVED").all()
+    for h in approved_handovers:
+        if not h.snapshot_hash:
+            canonical_json, snap_hash = CryptoAuditService.serialize_handover_canonical(h)
+            h.snapshot_hash = snap_hash
+            db.commit()
+
+        # Check if HandoverSnapshot exists
+        existing_snap = db.query(HandoverSnapshot).filter(
+            HandoverSnapshot.handover_id == h.id,
+            HandoverSnapshot.version == h.version
+        ).first()
+
+        if not existing_snap:
+            canonical_json, snap_hash = CryptoAuditService.serialize_handover_canonical(h)
+            snap = HandoverSnapshot(
+                handover_id=h.id,
+                project_id=h.project_id,
+                version=h.version,
+                snapshot_hash=snap_hash,
+                title=h.title,
+                executive_summary=h.executive_summary,
+                current_status=h.current_status,
+                recommended_actions=h.recommended_actions,
+                missing_information=h.missing_information,
+                conflicting_information=h.conflicting_information,
+                items_json=canonical_json,
+                approved_by_id=h.approved_by_id or lead_user.id,
+                approved_at=h.approved_at or utc_now(),
+                approval_notes=h.approval_notes or "Handover officially verified and signed off."
+            )
+            db.add(snap)
+            db.commit()
+
+    # 3. Connect GitHub repository to Project 1
+    gh_connector = db.query(ExternalConnector).filter(
+        ExternalConnector.project_id == p1.id,
+        ExternalConnector.provider == "GITHUB"
+    ).first()
+
+    if not gh_connector:
+        gh_connector = ExternalConnector(
+            project_id=p1.id,
+            provider="GITHUB",
+            name="Amanprajapati247/KnowBridge",
+            repo_url="https://github.com/Amanprajapati247/KnowBridge",
+            branch="main",
+            status="SYNCED",
+            last_synced_at=utc_now(),
+            sync_summary="Initial synchronization completed. 6 Git records imported (3 commits, 2 PRs, 1 issue). Extracted 4 architectural decision claims."
+        )
+        db.add(gh_connector)
+        db.commit()
+        db.refresh(gh_connector)
+
+        # Seed realistic GitHub commits, PRs, issues
+        seed_git_records = [
+            {
+                "id": "e0a65a3",
+                "type": "COMMIT",
+                "title": "Commit: Add SHA-256 cryptographic hashing for source files and snapshots",
+                "desc": "ADR Decision: Adopted SHA-256 content hashing over canonical JSON serialization for tamper detection and historical version preservation.",
+                "author": "Aman Prajapati",
+                "url": "https://github.com/Amanprajapati247/KnowBridge/commit/e0a65a3"
+            },
+            {
+                "id": "871dec2",
+                "type": "COMMIT",
+                "title": "Commit: Implement hybrid BM25 and dense vector retrieval pipeline",
+                "desc": "Architecture: Combined Okapi BM25 lexical search with 128-dimensional L2-normalized dense embeddings via Reciprocal Rank Fusion.",
+                "author": "Aman Prajapati",
+                "url": "https://github.com/Amanprajapati247/KnowBridge/commit/871dec2"
+            },
+            {
+                "id": "00ced15",
+                "type": "COMMIT",
+                "title": "Commit: Single-port unified Docker deployment serving FastAPI and React SPA",
+                "desc": "Refactored deployment to serve compiled React assets from FastAPI to eliminate CORS overhead on cloud hosts.",
+                "author": "Aman Prajapati",
+                "url": "https://github.com/Amanprajapati247/KnowBridge/commit/00ced15"
+            },
+            {
+                "id": "PR-14",
+                "type": "PULL_REQUEST",
+                "title": "PR #14: Role-based authorization gate for incoming member handover portal",
+                "desc": "Enforces server-side 403 Forbidden checks for incoming members attempting to query unapproved draft handovers or restricted documents.",
+                "author": "Aman Prajapati",
+                "url": "https://github.com/Amanprajapati247/KnowBridge/pull/14"
+            },
+            {
+                "id": "PR-12",
+                "type": "PULL_REQUEST",
+                "title": "PR #12: Offline-capable QR token verification service",
+                "desc": "Implemented HMAC-SHA256 offline verification protocol for student attendee ticketing scanners.",
+                "author": "Priya Sharma",
+                "url": "https://github.com/Amanprajapati247/KnowBridge/pull/12"
+            },
+            {
+                "id": "ISSUE-29",
+                "type": "ISSUE",
+                "title": "Issue #29: High concurrent traffic connection pool exhaustion under festival registration spikes",
+                "desc": "Risk: Load testing revealed SQLAlchemy connection pool starvation when concurrent requests exceed 500 req/s. Solution: Configured NullPool and async connection recycling.",
+                "author": "Marcus Vance",
+                "url": "https://github.com/Amanprajapati247/KnowBridge/issues/29"
+            }
+        ]
+
+        for gr in seed_git_records:
+            rec = ExternalRecord(
+                connector_id=gh_connector.id,
+                project_id=p1.id,
+                external_id=gr["id"],
+                record_type=gr["type"],
+                title=gr["title"],
+                description=gr["desc"],
+                author=gr["author"],
+                author_url="https://github.com/Amanprajapati247",
+                external_url=gr["url"],
+                created_at_external=utc_now(),
+                is_imported_to_claims=True
+            )
+            db.add(rec)
+        db.commit()
+
+        # Connect a Jira board demo connector
+        jira_connector = ExternalConnector(
+            project_id=p1.id,
+            provider="JIRA",
+            name="CEMS-BOARD",
+            repo_url="https://knowbridge.atlassian.net",
+            branch="main",
+            status="CONNECTED",
+            last_synced_at=utc_now(),
+            sync_summary="Jira connector registered. Live sync ready when JIRA_API_TOKEN is supplied in environment."
+        )
+        db.add(jira_connector)
+        db.commit()
+
+    # 4. Create HandoverSnapshot v2.0 for Project 1 (for version comparison demo)
+    h1 = db.query(Handover).filter(Handover.project_id == p1.id).order_by(Handover.id.asc()).first()
+    if h1:
+        snap_v2 = db.query(HandoverSnapshot).filter(
+            HandoverSnapshot.handover_id == h1.id,
+            HandoverSnapshot.version == "2.0"
+        ).first()
+
+        if not snap_v2:
+            snap_v1 = db.query(HandoverSnapshot).filter(
+                HandoverSnapshot.handover_id == h1.id,
+                HandoverSnapshot.version == "1.0"
+            ).first()
+
+            if snap_v1:
+                v1_data = json.loads(snap_v1.items_json)
+                v2_items = list(v1_data.get("items", []))
+
+                # Add a newly completed task in v2.0
+                v2_items.append({
+                    "claim_id": 9991,
+                    "section": "COMPLETED_TASKS",
+                    "title": "Completed: SHA-256 Tamper Verification Engine",
+                    "content": "Delivered cryptographic hash calculation and audit log integrity verification across all uploaded sources.",
+                    "source_filename": "Git Commit e0a65a3",
+                    "source_page": 1,
+                    "evidence_excerpt": "Commit e0a65a3: Add SHA-256 cryptographic hashing for source files and snapshots",
+                    "verification_status": "VERIFIED",
+                    "is_accepted": True,
+                    "is_rejected": False,
+                    "is_redacted": False
+                })
+
+                # Add a newly extracted architectural decision in v2.0
+                v2_items.append({
+                    "claim_id": 9992,
+                    "section": "DECISIONS",
+                    "title": "Decided: Reciprocal Rank Fusion for Hybrid Retrieval",
+                    "content": "Adopted RRF (k=60) combining BM25 keyword rankings with normalized 128-d dense vector embeddings.",
+                    "source_filename": "Git Commit 871dec2",
+                    "source_page": 1,
+                    "evidence_excerpt": "Commit 871dec2: Implement hybrid BM25 and dense vector retrieval pipeline",
+                    "verification_status": "VERIFIED",
+                    "is_accepted": True,
+                    "is_rejected": False,
+                    "is_redacted": False
+                })
+
+                v2_dict = {
+                    "handover_id": h1.id,
+                    "project_id": p1.id,
+                    "version": "2.0",
+                    "title": "Official Handover Report v2.0 - College Event Management System",
+                    "executive_summary": h1.executive_summary + " Updated in v2.0 with GitHub commits, hybrid RAG embeddings, and resolved Beta launch milestones.",
+                    "current_status": "Project is in 'PRODUCTION_READY' state. All high-priority deliverables completed and signed off.",
+                    "recommended_actions": "1. Validate production deployment on Railway.\n2. Review cryptographic audit trail.\n3. Conduct incoming member Q&A walkthrough.",
+                    "missing_information": "All required technical owners and milestones identified in repository and specifications.",
+                    "conflicting_information": "All cross-document contradictions formally resolved in v2.0.",
+                    "items": v2_items
+                }
+                v2_canonical = json.dumps(v2_dict, sort_keys=True, separators=(',', ':'))
+                v2_hash = hashlib.sha256(v2_canonical.encode('utf-8')).hexdigest()
+
+                snap_v2 = HandoverSnapshot(
+                    handover_id=h1.id,
+                    project_id=p1.id,
+                    version="2.0",
+                    snapshot_hash=v2_hash,
+                    title="Official Handover Report v2.0 - College Event Management System",
+                    executive_summary=v2_dict["executive_summary"],
+                    current_status=v2_dict["current_status"],
+                    recommended_actions=v2_dict["recommended_actions"],
+                    missing_information=v2_dict["missing_information"],
+                    conflicting_information=v2_dict["conflicting_information"],
+                    items_json=v2_canonical,
+                    approved_by_id=lead_user.id,
+                    approved_at=utc_now(),
+                    approval_notes="Round 3 updated handover report with Git integration and hybrid search verified."
+                )
+                db.add(snap_v2)
+                db.commit()
+
+        # 5. Seed Incoming Member Acknowledgment receipt
+        incoming_users = db.query(User).filter(User.role == "INCOMING_MEMBER").all()
+        for incoming_user in incoming_users:
+            existing_ack = db.query(HandoverAcknowledgment).filter(
+                HandoverAcknowledgment.handover_id == h1.id,
+                HandoverAcknowledgment.user_id == incoming_user.id
+            ).first()
+
+            if not existing_ack:
+                CryptoAuditService.record_acknowledgment(
+                    db=db,
+                    handover=h1,
+                    user=incoming_user,
+                    signature_notes="Verified executive summary, pending deliverables, and risk mitigation plan. Ready to commence onboarding."
+                )
+

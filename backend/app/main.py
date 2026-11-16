@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
-from app.core.database import engine, Base, SessionLocal
+from app.core.database import engine, Base, SessionLocal, run_safe_migrations
 from app.core.security import get_password_hash
 from app.models import User
 from app.api import (
@@ -14,8 +14,14 @@ from app.api import (
     analysis_router,
     handovers_router,
     incoming_router,
-    activity_router
+    activity_router,
+    connectors_router,
+    rag_router,
+    crypto_router
 )
+
+# Run safe backward-compatible schema migrations
+run_safe_migrations()
 
 # Initialize database schema
 Base.metadata.create_all(bind=engine)
@@ -87,6 +93,9 @@ app.include_router(analysis_router, prefix=settings.API_V1_STR)
 app.include_router(handovers_router, prefix=settings.API_V1_STR)
 app.include_router(incoming_router, prefix=settings.API_V1_STR)
 app.include_router(activity_router, prefix=settings.API_V1_STR)
+app.include_router(connectors_router, prefix=settings.API_V1_STR)
+app.include_router(rag_router, prefix=settings.API_V1_STR)
+app.include_router(crypto_router, prefix=settings.API_V1_STR)
 
 @app.get("/api/health")
 def health_check():

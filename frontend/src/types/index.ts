@@ -37,6 +37,7 @@ export interface DocumentItem {
   filename: string;
   file_type: string;
   file_size: number;
+  sha256_hash?: string;
   uploaded_at: string;
   is_processed: boolean;
   passage_count: number;
@@ -115,6 +116,7 @@ export interface Handover {
   approved_by_id?: number;
   approved_at?: string;
   approval_notes?: string;
+  snapshot_hash?: string;
   items: HandoverItem[];
 }
 
@@ -125,6 +127,7 @@ export interface AuditLog {
   user_name?: string;
   action: string;
   details?: string;
+  sha256_hash?: string;
   timestamp: string;
 }
 
@@ -136,4 +139,142 @@ export interface DashboardStats {
   open_tasks: number;
   identified_risks: number;
   conflicts_count: number;
+}
+
+// --- ROUND 3 TYPES ---
+
+export interface ExternalRecord {
+  id: number;
+  connector_id: number;
+  project_id: number;
+  external_id: string;
+  record_type: 'COMMIT' | 'PULL_REQUEST' | 'ISSUE' | 'REVIEW';
+  title: string;
+  description?: string;
+  author?: string;
+  author_url?: string;
+  external_url?: string;
+  created_at_external?: string;
+  is_imported_to_claims: boolean;
+  created_at: string;
+}
+
+export interface ExternalConnector {
+  id: number;
+  project_id: number;
+  provider: 'GITHUB' | 'JIRA' | 'LINEAR';
+  name: string;
+  repo_url?: string;
+  branch: string;
+  status: 'CONNECTED' | 'SYNCED' | 'ERROR' | 'DISCONNECTED';
+  last_synced_at?: string;
+  sync_summary?: string;
+  error_message?: string;
+  created_at: string;
+  records_count: number;
+}
+
+export interface ConnectorSyncResult {
+  connector_id: number;
+  provider: string;
+  status: string;
+  synced_records: number;
+  new_claims_extracted: number;
+  sync_summary: string;
+  error_message?: string;
+}
+
+export interface RAGCitation {
+  document_id?: number;
+  filename: string;
+  page_number?: number;
+  passage_id?: number;
+  excerpt: string;
+  relevance_score: number;
+  source_type: 'DOCUMENT' | 'GITHUB' | 'TASK' | 'HANDOVER_REPORT' | 'HANDOVER_ITEM';
+  external_url?: string;
+}
+
+export interface RAGQueryResponse {
+  question: string;
+  answer: string;
+  confidence: number;
+  evidence_status: 'VERIFIED' | 'UNCERTAIN' | 'CONFLICT';
+  citations: RAGCitation[];
+  conflicts_detected: string[];
+  missing_information?: string;
+  retrieval_mode: string;
+}
+
+export interface HandoverSnapshot {
+  id: number;
+  handover_id: number;
+  project_id: number;
+  version: string;
+  snapshot_hash: string;
+  title: string;
+  executive_summary?: string;
+  current_status?: string;
+  created_at: string;
+  approved_by_id?: number;
+  approved_at?: string;
+  approval_notes?: string;
+}
+
+export interface VersionDiffItem {
+  change_type: 'ADDED' | 'REMOVED' | 'MODIFIED' | 'UNCHANGED';
+  section: string;
+  title: string;
+  old_content?: string;
+  new_content?: string;
+  verification_status: VerificationStatus;
+  source_filename?: string;
+}
+
+export interface HandoverVersionCompare {
+  project_id: number;
+  v1_version: string;
+  v2_version: string;
+  v1_hash: string;
+  v2_hash: string;
+  v1_approved_at?: string;
+  v2_approved_at?: string;
+  added_count: number;
+  removed_count: number;
+  modified_count: number;
+  unchanged_count: number;
+  diff_items: VersionDiffItem[];
+  summary: string;
+}
+
+export interface HandoverAcknowledgment {
+  id: number;
+  handover_id: number;
+  snapshot_id?: number;
+  project_id: number;
+  user_id: number;
+  version: string;
+  snapshot_hash: string;
+  receipt_token: string;
+  signature_notes?: string;
+  acknowledged_at: string;
+  user_name?: string;
+}
+
+export interface AcknowledgmentReceipt {
+  receipt_token: string;
+  handover_id: number;
+  handover_title: string;
+  version: string;
+  snapshot_hash: string;
+  project_id: number;
+  project_title: string;
+  user_id: number;
+  user_name: string;
+  user_email: string;
+  acknowledged_at: string;
+  signature_notes?: string;
+  cryptographic_algorithm: string;
+  verification_statement: string;
+  is_valid: boolean;
 }

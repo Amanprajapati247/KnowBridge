@@ -38,6 +38,9 @@ class Project(Base):
     claims = relationship("ExtractedClaim", back_populates="project", cascade="all, delete-orphan")
     handovers = relationship("Handover", back_populates="project", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="project", cascade="all, delete-orphan")
+    connectors = relationship("ExternalConnector", back_populates="project", cascade="all, delete-orphan")
+    snapshots = relationship("HandoverSnapshot", back_populates="project", cascade="all, delete-orphan")
+    acknowledgments = relationship("HandoverAcknowledgment", back_populates="project", cascade="all, delete-orphan")
 
 class Document(Base):
     __tablename__ = "documents"
@@ -51,6 +54,7 @@ class Document(Base):
     uploader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     uploaded_at = Column(DateTime, default=utc_now)
     extracted_text = Column(Text, nullable=True)
+    sha256_hash = Column(String(64), nullable=True)
     is_processed = Column(Boolean, default=False)
 
     project = relationship("Project", back_populates="documents")
@@ -122,9 +126,12 @@ class Handover(Base):
     approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     approval_notes = Column(Text, nullable=True)
+    snapshot_hash = Column(String(64), nullable=True)
 
     project = relationship("Project", back_populates="handovers")
     items = relationship("HandoverItem", back_populates="handover", cascade="all, delete-orphan")
+    snapshots = relationship("HandoverSnapshot", back_populates="handover", cascade="all, delete-orphan")
+    acknowledgments = relationship("HandoverAcknowledgment", back_populates="handover", cascade="all, delete-orphan")
 
 class HandoverItem(Base):
     __tablename__ = "handover_items"
@@ -157,6 +164,89 @@ class AuditLog(Base):
     user_name = Column(String(255), nullable=True)
     action = Column(String(100), nullable=False)
     details = Column(Text, nullable=True)
+    sha256_hash = Column(String(64), nullable=True)
     timestamp = Column(DateTime, default=utc_now)
 
     project = relationship("Project", back_populates="audit_logs")
+
+class ExternalConnector(Base):
+    __tablename__ = "external_connectors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    provider = Column(String(50), nullable=False)  # "GITHUB", "JIRA", "LINEAR"
+    name = Column(String(255), nullable=False)      # e.g. "Amanprajapati247/KnowBridge"
+    repo_url = Column(String(500), nullable=True)
+    branch = Column(String(100), default="main")
+    status = Column(String(50), default="CONNECTED")  # "CONNECTED", "SYNCED", "ERROR", "DISCONNECTED"
+    last_synced_at = Column(DateTime, nullable=True)
+    sync_cursor = Column(String(255), nullable=True)   # latest commit SHA or last sync marker
+    sync_summary = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    project = relationship("Project", back_populates="connectors")
+    records = relationship("ExternalRecord", back_populates="connector", cascade="all, delete-orphan")
+
+class ExternalRecord(Base):
+    __tablename__ = "external_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    connector_id = Column(Integer, ForeignKey("external_connectors.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    external_id = Column(String(255), nullable=False)  # Commit SHA, PR #, or Issue Key
+    record_type = Column(String(50), nullable=False)   # "COMMIT", "PULL_REQUEST", "ISSUE", "REVIEW"
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    author = Column(String(255), nullable=True)
+    author_url = Column(String(500), nullable=True)
+    external_url = Column(String(500), nullable=True)
+    created_at_external = Column(DateTime, nullable=True)
+    raw_data_json = Column(Text, nullable=True)
+    is_imported_to_claims = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=utc_now)
+
+    connector = relationship("ExternalConnector", back_populates="records")
+
+class HandoverSnapshot(Base):
+    __tablename__ = "handover_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    handover_id = Column(Integer, ForeignKey("handovers.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    version = Column(String(50), nullable=False)
+    snapshot_hash = Column(String(64), nullable=False)  # Cryptographic SHA-256
+    title = Column(String(255), nullable=False)
+    executive_summary = Column(Text, nullable=True)
+    current_status = Column(Text, nullable=True)
+    recommended_actions = Column(Text, nullable=True)
+    missing_information = Column(Text, nullable=True)
+    conflicting_information = Column(Text, nullable=True)
+    items_json = Column(Text, nullable=False)  # Canonical JSON snapshot of all approved items
+    created_at = Column(DateTime, default=utc_now)
+    approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approval_notes = Column(Text, nullable=True)
+
+    handover = relationship("Handover", back_populates="snapshots")
+    project = relationship("Project", back_populates="snapshots")
+    acknowledgments = relationship("HandoverAcknowledgment", back_populates="snapshot", cascade="all, delete-orphan")
+
+class HandoverAcknowledgment(Base):
+    __tablename__ = "handover_acknowledgments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    handover_id = Column(Integer, ForeignKey("handovers.id"), nullable=False)
+    snapshot_id = Column(Integer, ForeignKey("handover_snapshots.id"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    version = Column(String(50), nullable=False)
+    snapshot_hash = Column(String(64), nullable=False)
+    receipt_token = Column(String(64), nullable=False)  # SHA-256(user_id:handover_id:version:snapshot_hash:timestamp)
+    signature_notes = Column(Text, nullable=True)
+    acknowledged_at = Column(DateTime, default=utc_now)
+
+    user = relationship("User")
+    handover = relationship("Handover", back_populates="acknowledgments")
+    snapshot = relationship("HandoverSnapshot", back_populates="acknowledgments")
+    project = relationship("Project", back_populates="acknowledgments")

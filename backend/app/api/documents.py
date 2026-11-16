@@ -1,5 +1,6 @@
 import os
 import shutil
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -52,6 +53,8 @@ async def upload_documents(
         with open(saved_path, "wb") as f:
             f.write(file_bytes)
 
+        sha256_hash = hashlib.sha256(file_bytes).hexdigest()
+
         # Create Document record
         doc_record = Document(
             project_id=project.id,
@@ -60,6 +63,7 @@ async def upload_documents(
             file_size=file_size,
             file_path=saved_path,
             uploader_id=current_user.id,
+            sha256_hash=sha256_hash,
             is_processed=False
         )
         db.add(doc_record)
@@ -98,6 +102,7 @@ async def upload_documents(
             filename=doc_record.filename,
             file_type=doc_record.file_type,
             file_size=doc_record.file_size,
+            sha256_hash=doc_record.sha256_hash,
             uploaded_at=doc_record.uploaded_at,
             is_processed=doc_record.is_processed,
             passage_count=passage_count
@@ -125,6 +130,7 @@ def list_documents(
             filename=d.filename,
             file_type=d.file_type,
             file_size=d.file_size,
+            sha256_hash=d.sha256_hash,
             uploaded_at=d.uploaded_at,
             is_processed=d.is_processed,
             passage_count=p_count

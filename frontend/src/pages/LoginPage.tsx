@@ -109,6 +109,40 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Dedicated Judge & Evaluator Demo Access */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">Evaluation Demo Credentials</span>
+            <span className="text-[10px] bg-teal-50 text-teal-700 font-semibold px-2 py-0.5 rounded-full border border-teal-200">Pre-seeded</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => { setEmail('lead@knowbridge.io'); setPassword('DemoLead123!'); }}
+              className="p-3 bg-slate-50 hover:bg-teal-50/50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-slate-900 group-hover:text-teal-700">Project Lead</span>
+                <span className="text-[10px] text-teal-600 font-medium">Click to fill</span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono mt-0.5 truncate">lead@knowbridge.io</div>
+              <div className="text-[10px] text-slate-400 mt-1">Full creator, review & connector access</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEmail('incoming@knowbridge.io'); setPassword('Incoming123!'); }}
+              className="p-3 bg-slate-50 hover:bg-cyan-50/50 border border-slate-200 hover:border-cyan-300 rounded-xl text-left transition group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-slate-900 group-hover:text-cyan-700">Incoming Member</span>
+                <span className="text-[10px] text-cyan-600 font-medium">Click to fill</span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono mt-0.5 truncate">incoming@knowbridge.io</div>
+              <div className="text-[10px] text-slate-400 mt-1">Approved handover review & sign-off</div>
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

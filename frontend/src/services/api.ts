@@ -8,7 +8,15 @@ import {
   Handover,
   HandoverItem,
   AuditLog,
-  DashboardStats
+  DashboardStats,
+  ExternalConnector,
+  ExternalRecord,
+  ConnectorSyncResult,
+  RAGQueryResponse,
+  HandoverSnapshot,
+  HandoverVersionCompare,
+  HandoverAcknowledgment,
+  AcknowledgmentReceipt
 } from '../types';
 
 const API_BASE = '/api';
@@ -262,5 +270,131 @@ export const api = {
       headers: getHeaders()
     });
     return handleResponse<AuditLog[]>(res);
+  },
+
+  // --- CONNECTORS (ROUND 3 COMMITMENT 1) ---
+  async listConnectors(projectId: number): Promise<ExternalConnector[]> {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/connectors`, {
+      headers: getHeaders()
+    });
+    return handleResponse<ExternalConnector[]>(res);
+  },
+
+  async connectGitHub(projectId: number, repoName: string, branch: string = 'main', token?: string): Promise<ExternalConnector> {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/connectors/github`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        provider: 'GITHUB',
+        repo_name_or_key: repoName,
+        branch,
+        access_token: token || undefined
+      })
+    });
+    return handleResponse<ExternalConnector>(res);
+  },
+
+  async connectTaskBoard(projectId: number, provider: 'JIRA' | 'LINEAR', key: string, instanceUrl?: string): Promise<ExternalConnector> {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/connectors/task-board`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        provider,
+        repo_name_or_key: key,
+        instance_url: instanceUrl
+      })
+    });
+    return handleResponse<ExternalConnector>(res);
+  },
+
+  async syncConnector(projectId: number, connectorId: number): Promise<ConnectorSyncResult> {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/connectors/${connectorId}/sync`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    return handleResponse<ConnectorSyncResult>(res);
+  },
+
+  async listConnectorRecords(projectId: number, connectorId: number): Promise<ExternalRecord[]> {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/connectors/${connectorId}/records`, {
+      headers: getHeaders()
+    });
+    return handleResponse<ExternalRecord[]>(res);
+  },
+
+  async deleteConnector(projectId: number, connectorId: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/connectors/${connectorId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return handleResponse<void>(res);
+  },
+
+  // --- SEMANTIC HYBRID RAG (ROUND 3 COMMITMENT 2) ---
+  async queryRAG(question: string, projectId?: number, topK: number = 5): Promise<RAGQueryResponse> {
+    const url = projectId ? `${API_BASE}/rag/query?project_id=${projectId}` : `${API_BASE}/rag/query`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ question, top_k: topK })
+    });
+    return handleResponse<RAGQueryResponse>(res);
+  },
+
+  async getSampleQuestions(): Promise<string[]> {
+    const res = await fetch(`${API_BASE}/rag/sample-questions`);
+    return handleResponse<string[]>(res);
+  },
+
+  // --- CRYPTOGRAPHIC AUDIT & VERSIONING (ROUND 3 COMMITMENT 3) ---
+  async listHandoverSnapshots(handoverId: number): Promise<HandoverSnapshot[]> {
+    const res = await fetch(`${API_BASE}/handovers/${handoverId}/snapshots`, {
+      headers: getHeaders()
+    });
+    return handleResponse<HandoverSnapshot[]>(res);
+  },
+
+  async verifyHandoverHash(handoverId: number): Promise<{ is_verified: boolean; recorded_hash: string; recalculated_hash: string; message: string; algorithm: string }> {
+    const res = await fetch(`${API_BASE}/handovers/${handoverId}/verify-hash`, {
+      headers: getHeaders()
+    });
+    return handleResponse<any>(res);
+  },
+
+  async verifyDocumentHash(documentId: number): Promise<{ is_valid: boolean; recorded_hash: string; current_hash: string; message: string; algorithm: string }> {
+    const res = await fetch(`${API_BASE}/documents/${documentId}/verify-hash`, {
+      headers: getHeaders()
+    });
+    return handleResponse<any>(res);
+  },
+
+  async compareHandoverVersions(handoverId: number, v1: string, v2: string): Promise<HandoverVersionCompare> {
+    const res = await fetch(`${API_BASE}/handovers/${handoverId}/compare?v1=${v1}&v2=${v2}`, {
+      headers: getHeaders()
+    });
+    return handleResponse<HandoverVersionCompare>(res);
+  },
+
+  async acknowledgeHandover(handoverId: number, signatureNotes?: string): Promise<HandoverAcknowledgment> {
+    const res = await fetch(`${API_BASE}/handovers/${handoverId}/acknowledge`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ signature_notes: signatureNotes })
+    });
+    return handleResponse<HandoverAcknowledgment>(res);
+  },
+
+  async getAcknowledgmentReceipt(handoverId: number): Promise<AcknowledgmentReceipt> {
+    const res = await fetch(`${API_BASE}/handovers/${handoverId}/receipt`, {
+      headers: getHeaders()
+    });
+    return handleResponse<AcknowledgmentReceipt>(res);
+  },
+
+  async listHandoverAcknowledgments(handoverId: number): Promise<HandoverAcknowledgment[]> {
+    const res = await fetch(`${API_BASE}/handovers/${handoverId}/acknowledgments`, {
+      headers: getHeaders()
+    });
+    return handleResponse<HandoverAcknowledgment[]>(res);
   }
 };

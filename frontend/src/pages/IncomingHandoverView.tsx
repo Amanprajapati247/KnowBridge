@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../services/api';
-import { Handover, HandoverItem } from '../types';
+import { Handover, HandoverItem, AcknowledgmentReceipt } from '../types';
+import { RAGAssistantTab } from '../components/RAGAssistantTab';
 import { 
   ArrowLeft, 
   ShieldCheck, 
@@ -13,7 +14,10 @@ import {
   HelpCircle, 
   ChevronRight,
   User,
-  Quote
+  Quote,
+  Hash,
+  Sparkles,
+  FileCheck
 } from 'lucide-react';
 
 export const IncomingHandoverView: React.FC = () => {
@@ -25,6 +29,13 @@ export const IncomingHandoverView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [completedItems, setCompletedItems] = useState<Record<number, boolean>>({});
 
+  // Acknowledgment state
+  const [receipt, setReceipt] = useState<AcknowledgmentReceipt | null>(null);
+  const [ackConfirmed, setAckConfirmed] = useState(false);
+  const [ackNotes, setAckNotes] = useState('');
+  const [isAcknowledging, setIsAcknowledging] = useState(false);
+  const [ackError, setAckError] = useState<string | null>(null);
+
   useEffect(() => {
     async function fetchHandover() {
       setIsLoading(true);
@@ -32,6 +43,14 @@ export const IncomingHandoverView: React.FC = () => {
       try {
         const data = await api.getApprovedHandover(handoverId);
         setHandover(data);
+        
+        // Check if already acknowledged
+        try {
+          const rec = await api.getAcknowledgmentReceipt(handoverId);
+          setReceipt(rec);
+        } catch {
+          // Not acknowledged yet, which is expected
+        }
       } catch (err: any) {
         setError(err.message || 'Access Denied: This handover is not approved for incoming member viewing.');
       } finally {
@@ -48,6 +67,24 @@ export const IncomingHandoverView: React.FC = () => {
       ...prev,
       [itemId]: !prev[itemId]
     }));
+  };
+
+  const handleAcknowledge = async () => {
+    if (!handover || !ackConfirmed) return;
+    setIsAcknowledging(true);
+    setAckError(null);
+    try {
+      await api.acknowledgeHandover(
+        handoverId, 
+        ackNotes || 'Handover reviewed, accepted, and acknowledged by incoming team member.'
+      );
+      const rec = await api.getAcknowledgmentReceipt(handoverId);
+      setReceipt(rec);
+    } catch (err: any) {
+      setAckError(err.message || 'Failed to submit handover acknowledgment.');
+    } finally {
+      setIsAcknowledging(false);
+    }
   };
 
   if (isLoading) {
@@ -249,6 +286,126 @@ export const IncomingHandoverView: React.FC = () => {
         <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
           {handover.recommended_actions}
         </pre>
+      </div>
+
+      {/* Semantic Hybrid RAG for Incoming Member */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center space-x-2">
+          <Sparkles className="w-5 h-5 text-teal-600" />
+          <h3 className="text-sm font-bold text-slate-900">Ask Questions Over Approved Handover</h3>
+        </div>
+        <p className="text-xs text-slate-500">
+          Incoming members can query this approved handover in natural language. Answers are strictly grounded in verified passages.
+        </p>
+        <RAGAssistantTab projectId={handover.project_id} />
+      </div>
+
+      {/* Cryptographic Handover Acknowledgment Card */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-teal-50 text-teal-700 rounded-2xl">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Cryptographic Handover Acknowledgment</h3>
+              <p className="text-xs text-slate-500">
+                Formal sign-off and receipt generation anchored to immutable snapshot hash (SHA-256).
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 uppercase font-mono">
+            v{handover.version}
+          </span>
+        </div>
+
+        {receipt ? (
+          /* Acknowledged State: Verified Receipt Display */
+          <div className="p-6 bg-teal-50/50 rounded-2xl border border-teal-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-600 text-white shadow-xs">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>HANDOVER CRYPTOGRAPHICALLY ACKNOWLEDGED</span>
+              </span>
+              <span className="text-[11px] text-teal-800 font-semibold">
+                Status: {receipt.is_valid ? 'VERIFIED INTEGRITY' : 'PENDING'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Verifiable Receipt Token</span>
+                <span className="font-mono text-xs font-bold text-slate-900 bg-white px-2.5 py-1.5 rounded-lg border border-teal-200 block truncate" title={receipt.receipt_token}>
+                  {receipt.receipt_token}
+                </span>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Snapshot SHA-256 Hash</span>
+                <span className="font-mono text-xs text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-teal-200 block truncate" title={receipt.snapshot_hash}>
+                  {receipt.snapshot_hash}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-teal-100">
+              <span>Signed by: <b>{receipt.user_email}</b></span>
+              <span>Timestamp: <b>{new Date(receipt.acknowledged_at).toLocaleString()}</b></span>
+            </div>
+
+            {receipt.signature_notes && (
+              <p className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-teal-100 italic">
+                "{receipt.signature_notes}"
+              </p>
+            )}
+
+            <div className="text-[10px] text-slate-400 italic">
+              Verification Notice: The SHA-256 hash mathematically proves that the handover content reviewed at sign-off exactly matches the approved project snapshot.
+            </div>
+          </div>
+        ) : (
+          /* Unacknowledged State: Form */
+          <div className="space-y-4">
+            {ackError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
+                {ackError}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-700">
+                Handover Acceptance Notes <span className="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <textarea
+                value={ackNotes}
+                onChange={(e) => setAckNotes(e.target.value)}
+                placeholder="e.g. Reviewed architecture, set up local environment, scheduled sprint kickoff with lead..."
+                rows={2}
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              />
+            </div>
+
+            <label className="flex items-start space-x-3 cursor-pointer p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100/60 transition">
+              <input
+                type="checkbox"
+                checked={ackConfirmed}
+                onChange={(e) => setAckConfirmed(e.target.checked)}
+                className="mt-0.5 rounded text-teal-600 focus:ring-teal-500"
+              />
+              <span className="text-xs text-slate-700 leading-relaxed">
+                I confirm that I have reviewed the approved handover report, understand the system decisions, open deliverables, and active risks, and accept ownership of incoming engineering tasks.
+              </span>
+            </label>
+
+            <button
+              onClick={handleAcknowledge}
+              disabled={isAcknowledging || !ackConfirmed}
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white font-bold rounded-xl text-xs shadow-sm transition flex items-center justify-center space-x-2"
+            >
+              <FileCheck className="w-4 h-4 text-teal-400" />
+              <span>{isAcknowledging ? 'Recording Cryptographic Acknowledgment...' : 'Sign & Acknowledge Handover'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
     </div>

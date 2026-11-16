@@ -192,3 +192,171 @@ def test_end_to_end_demo_workflow():
     actions = [l["action"] for l in logs]
     assert "HANDOVER_APPROVED" in actions
     assert "CONFLICT_RESOLVED" in actions
+
+def test_sha256_content_hashing_and_verification(tmp_path):
+    # 1. Login as Project Lead
+    login_res = client.post("/api/auth/login", json={
+        "email": "lead@knowbridge.demo",
+        "password": "DemoLead123!"
+    })
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. Get lead's project
+    p_res = client.get("/api/projects", headers=headers)
+    assert p_res.status_code == 200
+    projs = p_res.json()
+    assert len(projs) > 0
+    pid = projs[0]["id"]
+
+    # 3. Upload a test document
+    txt_file = tmp_path / "crypto_test.txt"
+    content = "Cryptographic integrity test document content.\nDecision: Enforce SHA-256 hashes."
+    txt_file.write_text(content, encoding="utf-8")
+
+    with open(txt_file, "rb") as f:
+        upload_res = client.post(f"/api/projects/{pid}/documents", headers=headers, files={"files": ("crypto_test.txt", f, "text/plain")})
+    assert upload_res.status_code == 201
+    docs = upload_res.json()
+    doc_id = docs[0]["id"]
+    assert docs[0]["sha256_hash"] is not None
+    assert len(docs[0]["sha256_hash"]) == 64
+
+    # 4. Verify hash via API
+    verify_res = client.get(f"/api/documents/{doc_id}/verify-hash", headers=headers)
+    assert verify_res.status_code == 200
+    v_data = verify_res.json()
+    assert v_data["is_valid"] is True
+    assert v_data["algorithm"] == "SHA-256"
+
+def test_handover_versioning_and_snapshot_diff():
+    login_res = client.post("/api/auth/login", json={
+        "email": "lead@knowbridge.io",
+        "password": "DemoLead123!"
+    })
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Fetch projects owned by this lead and pick the CEMS demo project with snapshots
+    p_res = client.get("/api/projects", headers=headers)
+    assert p_res.status_code == 200
+    projs = p_res.json()
+    assert len(projs) > 0
+    cems_proj = next((p for p in projs if "College Event" in p["title"]), projs[0])
+    pid = cems_proj["id"]
+
+    h_res = client.get(f"/api/projects/{pid}/handovers", headers=headers)
+    assert h_res.status_code == 200
+    handovers = h_res.json()
+    assert len(handovers) > 0
+    hid = handovers[0]["id"]
+
+    # 1. Check snapshots
+    snap_res = client.get(f"/api/handovers/{hid}/snapshots", headers=headers)
+    assert snap_res.status_code == 200
+    snaps = snap_res.json()
+    assert len(snaps) >= 1
+
+    # 2. Compare versions v1.0 and v2.0
+    compare_res = client.get(f"/api/handovers/{hid}/compare?v1=1.0&v2=2.0", headers=headers)
+    assert compare_res.status_code == 200
+    diff = compare_res.json()
+    assert diff["v1_version"] == "1.0"
+    assert diff["v2_version"] == "2.0"
+    assert diff["added_count"] >= 0
+    assert "Comparing Handover v1.0 against v2.0" in diff["summary"]
+
+def test_incoming_member_acknowledgment_and_receipt():
+    # 1. Login as Incoming Member
+    inc_login = client.post("/api/auth/login", json={
+        "email": "incoming@knowbridge.demo",
+        "password": "Incoming123!"
+    })
+    inc_token = inc_login.json()["access_token"]
+    inc_headers = {"Authorization": f"Bearer {inc_token}"}
+
+    # Fetch approved handovers
+    approved_res = client.get("/api/incoming/handovers", headers=inc_headers)
+    assert approved_res.status_code == 200
+    approved_list = approved_res.json()
+    assert len(approved_list) > 0
+    target_h = approved_list[0]
+    hid = target_h["id"]
+
+    # 2. Acknowledge Handover
+    ack_res = client.post(f"/api/handovers/{hid}/acknowledge", headers=inc_headers, json={
+        "signature_notes": "Reviewed and acknowledged for Round 3 QA verification."
+    })
+    assert ack_res.status_code == 200
+    ack_data = ack_res.json()
+    assert len(ack_data["receipt_token"]) == 64
+    assert len(ack_data["snapshot_hash"]) == 64
+
+    # 3. Retrieve Verifiable Receipt
+    receipt_res = client.get(f"/api/handovers/{hid}/receipt", headers=inc_headers)
+    assert receipt_res.status_code == 200
+    r_data = receipt_res.json()
+    assert r_data["receipt_token"] == ack_data["receipt_token"]
+    assert r_data["is_valid"] is True
+    assert "cryptographic receipt confirms" in r_data["verification_statement"]
+
+def test_semantic_hybrid_rag_qna():
+    login_res = client.post("/api/auth/login", json={
+        "email": "lead@knowbridge.demo",
+        "password": "DemoLead123!"
+    })
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Ask a question with available evidence
+    res = client.post("/api/rag/query", headers=headers, json={
+        "question": "Why was the launch date changed?",
+        "top_k": 3
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["evidence_status"] in ("VERIFIED", "CONFLICT")
+    assert len(data["citations"]) > 0
+    assert data["confidence"] > 0.5
+    assert data["retrieval_mode"] == "HYBRID_BM25_DENSE"
+
+    # 2. Ask a question with absent/unsupported info
+    absent_res = client.post("/api/rag/query", headers=headers, json={
+        "question": "What is the quantum encryption secret key for satellite uplink?",
+        "top_k": 3
+    })
+    assert absent_res.status_code == 200
+    absent_data = absent_res.json()
+    assert absent_data["evidence_status"] == "UNCERTAIN"
+
+def test_external_connectors_api():
+    login_res = client.post("/api/auth/login", json={
+        "email": "lead@knowbridge.demo",
+        "password": "DemoLead123!"
+    })
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Fetch projects owned by this lead and pick the CEMS demo project with snapshots
+    p_res = client.get("/api/projects", headers=headers)
+    assert p_res.status_code == 200
+    projs = p_res.json()
+    assert len(projs) > 0
+    cems_proj = next((p for p in projs if "College Event" in p["title"]), projs[0])
+    pid = cems_proj["id"]
+
+    # 1. Connect a Jira task board
+    conn_res = client.post(f"/api/projects/{pid}/connectors/task-board", headers=headers, json={
+        "provider": "JIRA",
+        "repo_name_or_key": "QA-SPRINT",
+        "instance_url": "https://qa-team.atlassian.net"
+    })
+    assert conn_res.status_code == 201
+    conn_data = conn_res.json()
+    assert conn_data["provider"] == "JIRA"
+    assert conn_data["name"] == "QA-SPRINT"
+
+    # 2. List connectors
+    list_res = client.get(f"/api/projects/{pid}/connectors", headers=headers)
+    assert list_res.status_code == 200
+    assert any(c["name"] == "QA-SPRINT" for c in list_res.json())

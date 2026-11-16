@@ -5,6 +5,9 @@ from app.api.analysis import router as analysis_router
 from app.api.handovers import router as handovers_router
 from app.api.incoming import router as incoming_router
 from app.api.activity import router as activity_router
+from app.api.connectors import router as connectors_router
+from app.api.rag import router as rag_router
+from app.api.crypto import router as crypto_router
 
 __all__ = [
     "auth_router",
@@ -13,5 +16,8 @@ __all__ = [
     "analysis_router",
     "handovers_router",
     "incoming_router",
-    "activity_router"
+    "activity_router",
+    "connectors_router",
+    "rag_router",
+    "crypto_router"
 ]

@@ -34,11 +34,15 @@ import {
   Search,
   Activity,
   FileCheck,
-  Download
+  Download,
+  GitBranch
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { ConnectorsTab } from '../components/ConnectorsTab';
+import { RAGAssistantTab } from '../components/RAGAssistantTab';
+import { VersionHistoryTab } from '../components/VersionHistoryTab';
 
-type WorkspaceTab = 'overview' | 'documents' | 'claims' | 'conflicts' | 'handover' | 'activity';
+type WorkspaceTab = 'overview' | 'documents' | 'claims' | 'conflicts' | 'connectors' | 'rag' | 'versions' | 'handover' | 'activity';
 
 export const ProjectWorkspace: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -355,7 +359,43 @@ export const ProjectWorkspace: React.FC = () => {
             }`}
           >
             <AlertCircle className="w-4 h-4 text-rose-500" />
-            <span>Conflicts & Discrepancies ({conflictsList.length})</span>
+            <span>Conflicts ({conflictsList.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('connectors')}
+            className={`pb-3 border-b-2 transition flex items-center space-x-1.5 ${
+              activeTab === 'connectors'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <GitBranch className="w-4 h-4" />
+            <span>Connectors</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('rag')}
+            className={`pb-3 border-b-2 transition flex items-center space-x-1.5 ${
+              activeTab === 'rag'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Semantic Q&A</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('versions')}
+            className={`pb-3 border-b-2 transition flex items-center space-x-1.5 ${
+              activeTab === 'versions'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Version Diff & Audit</span>
           </button>
 
           <button
@@ -367,7 +407,7 @@ export const ProjectWorkspace: React.FC = () => {
             }`}
           >
             <FileCheck className="w-4 h-4 text-brand-600" />
-            <span>Handover Review Studio ({activeHandover ? `v${activeHandover.version} - ${activeHandover.status}` : 'None'})</span>
+            <span>Handover Studio ({activeHandover ? `v${activeHandover.version}` : 'None'})</span>
           </button>
 
           <button
@@ -855,6 +895,21 @@ export const ProjectWorkspace: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB: CONNECTORS */}
+      {activeTab === 'connectors' && (
+        <ConnectorsTab projectId={projectId} />
+      )}
+
+      {/* TAB: SEMANTIC HYBRID RAG */}
+      {activeTab === 'rag' && (
+        <RAGAssistantTab projectId={projectId} />
+      )}
+
+      {/* TAB: VERSION DIFF & CRYPTOGRAPHIC AUDIT */}
+      {activeTab === 'versions' && (
+        <VersionHistoryTab handoverId={activeHandover?.id} projectId={projectId} />
       )}
 
       {/* TAB 6: ACTIVITY TRAIL */}

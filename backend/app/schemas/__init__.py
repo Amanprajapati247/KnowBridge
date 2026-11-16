@@ -74,6 +74,7 @@ class DocumentOut(BaseModel):
     filename: str
     file_type: str
     file_size: int
+    sha256_hash: Optional[str] = None
     uploaded_at: datetime
     is_processed: bool
     passage_count: int = 0
@@ -154,6 +155,7 @@ class HandoverOut(BaseModel):
     approved_by_id: Optional[int] = None
     approved_at: Optional[datetime] = None
     approval_notes: Optional[str] = None
+    snapshot_hash: Optional[str] = None
     items: List[HandoverItemOut] = []
 
 class HandoverApprove(BaseModel):
@@ -168,6 +170,7 @@ class AuditLogOut(BaseModel):
     user_name: Optional[str] = None
     action: str
     details: Optional[str] = None
+    sha256_hash: Optional[str] = None
     timestamp: datetime
 
 # --- STATS SCHEMAS ---
@@ -179,3 +182,152 @@ class MainDashboardStats(BaseModel):
     open_tasks: int
     identified_risks: int
     conflicts_count: int
+
+# --- CONNECTOR SCHEMAS ---
+class ConnectorConnect(BaseModel):
+    provider: str  # "GITHUB", "JIRA", "LINEAR"
+    repo_name_or_key: str  # e.g. "Amanprajapati247/KnowBridge" or "PROJ"
+    repo_url: Optional[str] = None
+    branch: Optional[str] = "main"
+    access_token: Optional[str] = None  # Handled securely, not stored directly in public fields
+    instance_url: Optional[str] = None  # for Jira (e.g. "https://company.atlassian.net")
+
+class ExternalRecordOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    connector_id: int
+    project_id: int
+    external_id: str
+    record_type: str  # "COMMIT", "PULL_REQUEST", "ISSUE", "REVIEW"
+    title: str
+    description: Optional[str] = None
+    author: Optional[str] = None
+    author_url: Optional[str] = None
+    external_url: Optional[str] = None
+    created_at_external: Optional[datetime] = None
+    is_imported_to_claims: bool
+    created_at: datetime
+
+class ConnectorOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    provider: str
+    name: str
+    repo_url: Optional[str] = None
+    branch: str
+    status: str
+    last_synced_at: Optional[datetime] = None
+    sync_summary: Optional[str] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    records_count: int = 0
+
+class ConnectorSyncResult(BaseModel):
+    connector_id: int
+    provider: str
+    status: str
+    synced_records: int
+    new_claims_extracted: int
+    sync_summary: str
+    error_message: Optional[str] = None
+
+# --- RAG & Q&A SCHEMAS ---
+class RAGQueryRequest(BaseModel):
+    question: str = Field(min_length=2)
+    top_k: int = 5
+
+class RAGCitation(BaseModel):
+    document_id: Optional[int] = None
+    filename: str
+    page_number: Optional[int] = None
+    passage_id: Optional[int] = None
+    excerpt: str
+    relevance_score: float
+    source_type: str = "DOCUMENT"  # "DOCUMENT", "GITHUB", "JIRA", "LINEAR"
+    external_url: Optional[str] = None
+
+class RAGQueryResponse(BaseModel):
+    question: str
+    answer: str
+    confidence: float
+    evidence_status: str  # "VERIFIED", "UNCERTAIN", "CONFLICT"
+    citations: List[RAGCitation] = []
+    conflicts_detected: List[str] = []
+    missing_information: Optional[str] = None
+    retrieval_mode: str = "HYBRID_BM25_DENSE"
+
+# --- VERSION HISTORY & COMPARISON SCHEMAS ---
+class HandoverSnapshotOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    handover_id: int
+    project_id: int
+    version: str
+    snapshot_hash: str
+    title: str
+    executive_summary: Optional[str] = None
+    current_status: Optional[str] = None
+    created_at: datetime
+    approved_by_id: Optional[int] = None
+    approved_at: Optional[datetime] = None
+    approval_notes: Optional[str] = None
+
+class VersionDiffItem(BaseModel):
+    change_type: str  # "ADDED", "REMOVED", "MODIFIED", "UNCHANGED"
+    section: str
+    title: str
+    old_content: Optional[str] = None
+    new_content: Optional[str] = None
+    verification_status: str
+    source_filename: Optional[str] = None
+
+class HandoverVersionCompareOut(BaseModel):
+    project_id: int
+    v1_version: str
+    v2_version: str
+    v1_hash: str
+    v2_hash: str
+    v1_approved_at: Optional[datetime] = None
+    v2_approved_at: Optional[datetime] = None
+    added_count: int
+    removed_count: int
+    modified_count: int
+    unchanged_count: int
+    diff_items: List[VersionDiffItem]
+    summary: str
+
+# --- ACKNOWLEDGMENT SCHEMAS ---
+class AcknowledgmentCreate(BaseModel):
+    signature_notes: Optional[str] = None
+
+class HandoverAcknowledgmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    handover_id: int
+    snapshot_id: Optional[int] = None
+    project_id: int
+    user_id: int
+    version: str
+    snapshot_hash: str
+    receipt_token: str
+    signature_notes: Optional[str] = None
+    acknowledged_at: datetime
+    user_name: Optional[str] = None
+
+class AcknowledgmentReceiptOut(BaseModel):
+    receipt_token: str
+    handover_id: int
+    handover_title: str
+    version: str
+    snapshot_hash: str
+    project_id: int
+    project_title: str
+    user_id: int
+    user_name: str
+    user_email: str
+    acknowledged_at: datetime
+    signature_notes: Optional[str] = None
+    cryptographic_algorithm: str = "SHA-256"
+    verification_statement: str
+    is_valid: bool = True
